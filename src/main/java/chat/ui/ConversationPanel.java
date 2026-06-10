@@ -3,6 +3,7 @@ package chat.ui;
 import chat.backend.ChatService;
 import chat.backend.Conversation;
 import chat.backend.Message;
+import chat.backend.UserProfile;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
@@ -118,9 +119,11 @@ public class ConversationPanel extends JPanel {
         ));
         messagePanel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        // Header with message ID, time and user
+        // Header with message ID, time, user and any profile metadata
         String time = TIME_FORMAT.format(message.getTimestamp());
-        JLabel headerLabel = new JLabel(String.format("#%d [%s] %s:", message.getId(), time, message.getSenderName()));
+        String senderName = message.getSenderName();
+        JLabel headerLabel = new JLabel(String.format("#%d [%s] %s%s:",
+                message.getId(), time, senderName, formatProfileMeta(senderName)));
         headerLabel.setFont(headerLabel.getFont().deriveFont(Font.BOLD, 11f));
         headerLabel.setForeground(new Color(70, 70, 70));
         headerLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -158,6 +161,28 @@ public class ConversationPanel extends JPanel {
 
         messagesPanel.add(messagePanel);
         messagesPanel.revalidate();
+    }
+
+    /**
+     * Builds a " (age 30, blue eyes)" suffix from the sender's profile, or an
+     * empty string when no metadata is known.
+     */
+    private String formatProfileMeta(String senderName) {
+        UserProfile profile = chatService.getUserProfile(senderName);
+        if (profile == null) {
+            return "";
+        }
+
+        List<String> parts = new java.util.ArrayList<>();
+        if (profile.getAge() != null) {
+            parts.add("age " + profile.getAge());
+        }
+        String eyeColor = profile.getEyeColor();
+        if (eyeColor != null && !eyeColor.isEmpty()) {
+            parts.add(eyeColor.toLowerCase() + " eyes");
+        }
+
+        return parts.isEmpty() ? "" : " (" + String.join(", ", parts) + ")";
     }
 
     private Image scaleImage(Image original) {
