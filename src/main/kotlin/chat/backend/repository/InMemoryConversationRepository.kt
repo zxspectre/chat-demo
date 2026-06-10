@@ -36,4 +36,10 @@ class InMemoryConversationRepository : ConversationRepository {
         conversation.addParticipant(userName)
         return true
     }
+
+    override fun removeParticipant(conversationId: Long, userName: String): Boolean {
+        val conversation = conversations[conversationId] ?: return false
+        conversation.removeParticipant(userName)
+        return true
+    }
 }

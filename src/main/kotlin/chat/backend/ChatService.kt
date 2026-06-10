@@ -4,6 +4,7 @@ import chat.backend.repository.ConversationRepository
 import chat.backend.repository.InMemoryConversationRepository
 import chat.backend.repository.InMemoryMessageRepository
 import chat.backend.repository.MessageRepository
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.function.Consumer
 
@@ -15,6 +16,7 @@ class ChatService(
     private val messageRepository: MessageRepository = InMemoryMessageRepository()
 ) {
     private val messageListeners = CopyOnWriteArrayList<Consumer<Message>>()
+    private val userProfiles = ConcurrentHashMap<String, UserProfile>()
 
     companion object {
         private const val MAX_MESSAGE_LENGTH = 10_000
@@ -65,6 +67,21 @@ class ChatService(
 
     fun addParticipant(conversationId: Long, userName: String): Boolean {
         return conversationRepository.addParticipant(conversationId, userName)
+    }
+
+    fun removeParticipant(conversationId: Long, userName: String): Boolean {
+        return conversationRepository.removeParticipant(conversationId, userName)
+    }
+
+    /**
+     * Stores (or replaces) the profile metadata for a user, keyed by name.
+     */
+    fun registerUserProfile(profile: UserProfile) {
+        userProfiles[profile.name] = profile
+    }
+
+    fun getUserProfile(name: String): UserProfile? {
+        return userProfiles[name]
     }
 
     fun addMessageListener(listener: Consumer<Message>) {

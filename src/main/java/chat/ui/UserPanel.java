@@ -1,10 +1,14 @@
 package chat.ui;
 
 import chat.backend.ChatService;
+import chat.backend.UserProfile;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
+import java.util.function.Consumer;
 
 /**
  * Panel representing a user's view of the chat.
@@ -15,6 +19,8 @@ public class UserPanel extends JPanel {
     private final String panelTitle;
 
     private JTextField userNameField;
+    private JTextField ageField;
+    private JComboBox<String> eyeColorCombo;
     private JTextArea messageInput;
     private JButton sendButton;
     private JButton attachImageButton;
@@ -22,6 +28,7 @@ public class UserPanel extends JPanel {
     private JLabel imagePreviewLabel;
 
     private Long currentConversationId;
+    private Consumer<String> nameChangeListener;
 
     public UserPanel(String title, ChatService chatService) {
         this.panelTitle = title;
@@ -38,14 +45,33 @@ public class UserPanel extends JPanel {
                 TitledBorder.TOP
         ));
 
-        // Top panel: User name input
-        JPanel userPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        userPanel.add(new JLabel("Name:"));
-        userNameField = new JTextField(10);
-        userNameField.setPreferredSize(new Dimension(100, 25));
-        userPanel.add(userNameField);
+        // Top panel: user profile metadata (name, age, eye color)
+        JPanel profilePanel = new JPanel();
+        profilePanel.setLayout(new BoxLayout(profilePanel, BoxLayout.Y_AXIS));
+        profilePanel.setBorder(BorderFactory.createTitledBorder("Profile"));
 
-        add(userPanel, BorderLayout.NORTH);
+        userNameField = new JTextField(10);
+        userNameField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) { fireNameChanged(); }
+            @Override
+            public void removeUpdate(DocumentEvent e) { fireNameChanged(); }
+            @Override
+            public void changedUpdate(DocumentEvent e) { fireNameChanged(); }
+        });
+        profilePanel.add(makeFieldRow("Name:", userNameField));
+
+        ageField = new JTextField(4);
+        ageField.setText("18");
+        profilePanel.add(makeFieldRow("Age:", ageField));
+
+        eyeColorCombo = new JComboBox<>(new String[]{
+                "", "Brown", "Blue", "Green", "Hazel", "Gray", "Amber", "Black"});
+        eyeColorCombo.setEditable(true);
+        eyeColorCombo.setSelectedItem("Brown");
+        profilePanel.add(makeFieldRow("Eye color:", eyeColorCombo));
+
+        add(profilePanel, BorderLayout.NORTH);
 
         // Center: Message input with image preview
         JPanel centerPanel = new JPanel(new BorderLayout(5, 5));
@@ -71,13 +97,36 @@ public class UserPanel extends JPanel {
 
         attachImageButton = new JButton("Attach Image");
         attachImageButton.addActionListener(e -> attachImage());
+        makeButtonBig(attachImageButton);
         buttonPanel.add(attachImageButton);
 
         sendButton = new JButton("Send");
         sendButton.addActionListener(e -> sendMessage());
+        makeButtonBig(sendButton);
         buttonPanel.add(sendButton);
 
         add(buttonPanel, BorderLayout.SOUTH);
+    }
+
+    /**
+     * Enlarges a button's font and preferred size to make it more prominent.
+     */
+    private void makeButtonBig(JButton button) {
+        button.setFont(button.getFont().deriveFont(Font.BOLD, 16f));
+        button.setPreferredSize(new Dimension(160, 45));
+    }
+
+    /**
+     * Builds a left-aligned "Label: [field]" row with a fixed-width label so the
+     * profile fields line up vertically.
+     */
+    private JPanel makeFieldRow(String labelText, JComponent field) {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 2));
+        JLabel label = new JLabel(labelText);
+        label.setPreferredSize(new Dimension(70, 25));
+        row.add(label);
+        row.add(field);
+        return row;
     }
 
     private void attachImage() {
@@ -148,6 +197,32 @@ public class UserPanel extends JPanel {
             return;
         }
 
+        // Parse optional age metadata.
+        Integer age = null;
+        String ageText = ageField.getText().trim();
+        if (!ageText.isEmpty()) {
+            try {
+                age = Integer.parseInt(ageText);
+                if (age < 0 || age > 150) {
+                    throw new NumberFormatException();
+                }
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(this,
+                        "Age must be a whole number between 0 and 150.",
+                        "Invalid Age",
+                        JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+        }
+
+        // Optional eye color metadata (editable combo box).
+        Object selectedColor = eyeColorCombo.getSelectedItem();
+        String eyeColor = selectedColor == null ? null : selectedColor.toString().trim();
+        if (eyeColor != null && eyeColor.isEmpty()) {
+            eyeColor = null;
+        }
+
+        chatService.registerUserProfile(new UserProfile(userName, age, eyeColor));
         chatService.sendMessage(currentConversationId, userName, text, pendingImage);
         messageInput.setText("");
         clearImagePreview();
@@ -163,5 +238,39 @@ public class UserPanel extends JPanel {
 
     public void setUserName(String userName) {
         userNameField.setText(userName);
+    }
+
+    public void setAge(Integer age) {
+        ageField.setText(age == null ? "" : String.valueOf(age));
+    }
+
+    public void setEyeColor(String eyeColor) {
+        eyeColorCombo.setSelectedItem(eyeColor == null ? "" : eyeColor);
+    }
+
+    /**
+     * Populates the editable fields from a stored profile, leaving the
+     * constructor defaults untouched when no profile exists.
+     */
+    public void loadProfile(UserProfile profile) {
+        if (profile == null) {
+            return;
+        }
+        setAge(profile.getAge());
+        setEyeColor(profile.getEyeColor());
+    }
+
+    /**
+     * Registers a listener that is notified whenever the participant's name changes.
+     * Used by the parent container to keep tab titles in sync.
+     */
+    public void setNameChangeListener(Consumer<String> listener) {
+        this.nameChangeListener = listener;
+    }
+
+    private void fireNameChanged() {
+        if (nameChangeListener != null) {
+            nameChangeListener.accept(getUserName());
+        }
     }
 }

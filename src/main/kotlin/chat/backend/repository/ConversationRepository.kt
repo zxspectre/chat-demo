@@ -8,4 +8,5 @@ interface ConversationRepository {
     fun findAll(): List<Conversation>
     fun findByParticipant(userName: String): List<Conversation>
     fun addParticipant(conversationId: Long, userName: String): Boolean
+    fun removeParticipant(conversationId: Long, userName: String): Boolean
 }
